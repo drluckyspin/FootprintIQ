@@ -1,11 +1,13 @@
-/**
- * GET /api/runs — list known pipeline run manifests. OWNED BY LANE D.
- *
- * Wave 0 stub returns empty list.
- */
-
 import { NextResponse } from "next/server";
 
+import { ListRunsResponseSchema } from "@/lib/api-contract";
+import { listRuns } from "@/lib/queries";
+
 export async function GET() {
-  return NextResponse.json({ runs: [] });
+  const { runs } = await listRuns();
+  const parsed = ListRunsResponseSchema.safeParse({ runs });
+  if (!parsed.success) {
+    return NextResponse.json({ runs });
+  }
+  return NextResponse.json(parsed.data);
 }
