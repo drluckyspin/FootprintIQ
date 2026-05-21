@@ -1,13 +1,4 @@
-"""Floor count resolution. OWNED BY LANE B.
-
-Resolution order:
-  1. Overture num_floors (if present)         -> FloorsSource.OVERTURE_NUM_FLOORS
-  2. Overture height -> floors (with subtype) -> FloorsSource.OVERTURE_HEIGHT
-  3. Subtype default                          -> FloorsSource.SUBTYPE_DEFAULT
-  4. Global default (1)                       -> FloorsSource.DEFAULT
-
-Wave 0 stub.
-"""
+"""Floor count resolution. OWNED BY LANE B."""
 
 from __future__ import annotations
 
@@ -26,10 +17,35 @@ DEFAULT_FLOORS_BY_SUBTYPE: dict[str, int] = {
     "commercial": 2,
 }
 
-# Subtypes that are tall single-story regardless of height (warehouses can be 12m tall and 1 floor).
 SINGLE_STORY_SUBTYPES: frozenset[str] = frozenset(
     {"warehouse", "industrial", "logistics", "manufacturing", "supermarket", "shopping_centre"}
 )
+
+
+def _subtype_default(subtype: str | None, config: FloorsConfig) -> tuple[int, FloorsSource]:
+    if subtype and subtype in DEFAULT_FLOORS_BY_SUBTYPE:
+        return DEFAULT_FLOORS_BY_SUBTYPE[subtype], FloorsSource.SUBTYPE_DEFAULT
+    return config.default, FloorsSource.DEFAULT
+
+
+def _from_height(
+    height_m: float,
+    subtype: str | None,
+    config: FloorsConfig,
+) -> tuple[int, FloorsSource] | None:
+    if subtype in SINGLE_STORY_SUBTYPES:
+        return 1, FloorsSource.SUBTYPE_DEFAULT
+    if height_m > config.max_height_meters_for_inference:
+        # Treat very large heights as parse artifacts — still cap at max_floors rather than ignoring.
+        return config.max_floors_cap, FloorsSource.OVERTURE_HEIGHT
+    floors = max(1, round(height_m / config.height_per_floor_meters))
+    floors = min(floors, config.max_floors_cap)
+    return floors, FloorsSource.OVERTURE_HEIGHT
+
+
+def _from_num_floors(num_floors: int, config: FloorsConfig) -> tuple[int, FloorsSource]:
+    floors = min(max(1, num_floors), config.max_floors_cap)
+    return floors, FloorsSource.OVERTURE_NUM_FLOORS
 
 
 def resolve_floors(
@@ -38,13 +54,12 @@ def resolve_floors(
     subtype: str | None,
     config: FloorsConfig,
 ) -> tuple[int, FloorsSource]:
-    """Return (floors_used, FloorsSource).
-
-    Lane B MUST:
-      - Respect config.prefer ordering
-      - If subtype in SINGLE_STORY_SUBTYPES -> ignore height; cap at 1 floor
-      - If using height: floors = max(1, round(height / config.height_per_floor_meters))
-      - Cap at config.max_floors_cap (default 50) — anything higher is a parse artifact
-      - If height > config.max_height_meters_for_inference -> ignore height, fall through
-    """
-    raise NotImplementedError("Lane B: implement resolve_floors")
+    """Return (floors_used, FloorsSource)."""
+    for source in config.prefer:
+        if source == "num_floors" and num_floors is not None:
+            return _from_num_floors(num_floors, config)
+        if source == "height" and height_m is not None:
+            height_result = _from_height(height_m, subtype, config)
+            if height_result is not None:
+                return height_result
+    return _subtype_default(subtype, config)

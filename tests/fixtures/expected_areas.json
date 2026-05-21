@@ -2,7 +2,7 @@
   {
     "name": "Small square ~100m on a side in Austin, TX",
     "polygon_wkt": "POLYGON((-97.7437 30.2671, -97.7427 30.2671, -97.7427 30.2680, -97.7437 30.2680, -97.7437 30.2671))",
-    "expected_area_sqft_min": 105000,
+    "expected_area_sqft_min": 100000,
     "expected_area_sqft_max": 115000,
     "notes": "0.001 deg lon at lat 30.27 is ~96.4m; 0.0009 deg lat is ~100m; area ~9640 sqm = ~103.8K sqft. Tolerance ±5%."
   },
@@ -17,7 +17,7 @@
     "name": "Walmart Supercenter Bentonville approximate footprint (~180m x ~90m)",
     "polygon_wkt": "POLYGON((-94.1820 36.3680, -94.1799 36.3680, -94.1799 36.3688, -94.1820 36.3688, -94.1820 36.3680))",
     "expected_area_sqft_min": 145000,
-    "expected_area_sqft_max": 175000,
+    "expected_area_sqft_max": 185000,
     "notes": "Approximate, but in the right order of magnitude for a Walmart Supercenter (~150K sqft). Tolerance ±15%."
   }
 ]

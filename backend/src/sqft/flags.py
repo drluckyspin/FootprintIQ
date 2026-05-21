@@ -1,16 +1,9 @@
-"""Centralized flag/confidence rule evaluation. OWNED BY LANE B.
-
-Each flag is a pure predicate over a partially-built EstimateRow.
-Produces both:
-  - boolean columns (flag_no_building_match, etc. — set on EstimateRow directly)
-  - flags_json   = JSON array of FlagKey strings (stable ordering for downstream tools)
-"""
+"""Centralized flag/confidence rule evaluation. OWNED BY LANE B."""
 
 from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Any
 
 from sqft.schema import (
     Confidence,
@@ -20,15 +13,12 @@ from sqft.schema import (
     MatchMethod,
 )
 
-# Tunable thresholds (Wave 0 defaults; Lane B may move these into config later if desired).
 AREA_MIN_SQFT = 500.0
-AREA_MAX_SQFT = 5_000_000.0  # high enough to include Amazon BFI4 (~3.6M)
+AREA_MAX_SQFT = 5_000_000.0
 OLD_FOOTPRINT_YEAR = 2018
-HEIGHT_OUTLIER_M = 200.0  # any taller is almost certainly a parse artifact
-TALL_BUILDING_M = 12.0  # buildings >12m without floor data trigger MISSING_FLOORS_TALL_BUILDING
+HEIGHT_OUTLIER_M = 200.0
+TALL_BUILDING_M = 12.0
 
-
-# Each FlagPredicate takes the EstimateRow being built and returns True if the flag applies.
 FlagPredicate = Callable[[EstimateRow], bool]
 
 
@@ -78,7 +68,6 @@ def _flag_geocode_failed(r: EstimateRow) -> bool:
 
 
 def _flag_suite_or_tenant_address(r: EstimateRow) -> bool:
-    # heuristic: address_input contains a unit marker
     s = (r.address_input or "").lower()
     return any(tok in s for tok in (" suite ", " ste ", " unit ", " #", " apt "))
 
@@ -96,31 +85,42 @@ FLAG_PREDICATES: dict[FlagKey, FlagPredicate] = {
     FlagKey.SUITE_OR_TENANT_ADDRESS: _flag_suite_or_tenant_address,
 }
 
+_FLAG_COLUMN_BY_KEY: dict[FlagKey, str] = {
+    key: f"flag_{key.value.lower()}" for key in FlagKey
+}
+
 
 def evaluate_flags(row: EstimateRow) -> EstimateRow:
-    """Set every boolean flag column AND flags_json on the row in-place; return it.
-
-    Lane B MUST keep this pure: input row + same dictionary -> same output, no I/O.
-    """
-    raise NotImplementedError("Lane B: implement evaluate_flags")
+    """Set every boolean flag column AND flags_json on the row in-place; return it."""
+    active: list[str] = []
+    for key in FlagKey:
+        applies = FLAG_PREDICATES[key](row)
+        setattr(row, _FLAG_COLUMN_BY_KEY[key], applies)
+        if applies:
+            active.append(key.value)
+    row.flags_json = json.dumps(active)
+    return row
 
 
 def resolve_confidence(row: EstimateRow) -> Confidence:
-    """Apply the confidence rules (high/medium/low/unmatched).
+    """Apply the confidence rules (high/medium/low/unmatched)."""
+    if row.building_id is None:
+        return Confidence.UNMATCHED
+    if (
+        row.flag_nearest_fallback
+        or row.flag_missing_floors_tall_building
+        or row.flag_area_out_of_range
+    ):
+        return Confidence.LOW
+    if (
+        row.flag_low_geocode_precision
+        or row.flag_multi_building_parcel
+        or row.flag_old_footprint
+    ):
+        return Confidence.MEDIUM
+    return Confidence.HIGH
 
-    Lane B MUST follow the rules in the plan:
-      - unmatched: building_id is None
-      - low: flag_nearest_fallback OR flag_missing_floors_tall_building OR flag_area_out_of_range
-      - medium: flag_low_geocode_precision OR flag_multi_building_parcel OR flag_old_footprint
-      - high: otherwise
-    """
-    raise NotImplementedError("Lane B: implement resolve_confidence")
 
-
-# Convenience for tests
 def _selected_flags(row: EstimateRow) -> list[str]:
     """Read FLAG_PREDICATES and return [FlagKey.value, ...] for the row, stable order."""
     return [k.value for k in FlagKey if FLAG_PREDICATES[k](row)]
-
-
-_ = (json, Any)  # keep imports
