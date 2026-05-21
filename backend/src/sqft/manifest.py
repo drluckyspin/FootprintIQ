@@ -1,14 +1,9 @@
-"""Pipeline run manifest writer. OWNED BY LANE C.
-
-Captures every reproducibility-relevant fact about a pipeline run into
-data/output/run_<id>/manifest.json.
-
-Wave 0 stub.
-"""
+"""Pipeline run manifest writer."""
 
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
 import uuid
 from datetime import UTC, datetime
@@ -17,16 +12,17 @@ from pathlib import Path
 from sqft.schema import RunManifest
 
 
-def new_run_id() -> str:
-    """Return a short, sortable run id (timestamp + uuid7-ish suffix).
+def utc_now() -> datetime:
+    return datetime.now(tz=UTC)
 
-    Lane C MUST: format like "20260521T030500Z__abcd1234".
-    """
-    raise NotImplementedError("Lane C: implement new_run_id")
+
+def new_run_id() -> str:
+    ts = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+    suffix = uuid.uuid4().hex[:8]
+    return f"{ts}__{suffix}"
 
 
 def sha256_file(path: Path) -> str:
-    """Return hex-encoded sha256 of a file's contents (streaming, for large parquet)."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -34,8 +30,11 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 def code_git_sha(repo_root: Path) -> str | None:
-    """Return current `git rev-parse HEAD` (short) for repo_root, or None if not a git repo."""
     try:
         out = subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"],
@@ -53,18 +52,25 @@ def start_manifest(
     config_path: Path,
     repo_root: Path,
     overture_release: str,
+    *,
+    input_row_count: int,
 ) -> RunManifest:
-    """Initialize a RunManifest at pipeline start.
+    config_bytes = config_path.read_bytes() if config_path.exists() else b"{}"
+    return RunManifest(
+        pipeline_run_id=new_run_id(),
+        started_at_utc=utc_now(),
+        code_git_sha=code_git_sha(repo_root),
+        config_sha256=hashlib.sha256(config_bytes).hexdigest(),
+        input_csv_path=str(input_csv.resolve()),
+        input_csv_sha256=sha256_file(input_csv),
+        input_row_count=input_row_count,
+        overture_release=overture_release,
+        output_estimates_path="",
+    )
 
-    Lane C MUST:
-      - new_run_id()
-      - sha256_file(input_csv) -> input_csv_sha256
-      - sha256_file(config_path) -> config_sha256 (or hash of resolved Settings JSON)
-      - code_git_sha(repo_root)
-      - started_at_utc = now(UTC)
-      - input_row_count = wc -l (minus header) or via io.read_input_csv
-    """
-    raise NotImplementedError("Lane C: implement start_manifest")
+
+def manifest_output_path(data_dir: Path, run_id: str) -> Path:
+    return data_dir / "output" / f"run_{run_id}" / "manifest.json"
 
 
 def finalize_manifest(
@@ -72,20 +78,18 @@ def finalize_manifest(
     output_path: Path,
     output_estimates_path: Path,
 ) -> Path:
-    """Write the final manifest.json. Returns the written path.
-
-    Lane C MUST:
-      - finished_at_utc = now(UTC)
-      - output_estimates_sha256 = sha256_file(output_estimates_path)
-      - Pretty-print JSON (indent=2, sort_keys=True for deterministic diffs)
-      - Write to output_path
-    """
-    raise NotImplementedError("Lane C: implement finalize_manifest")
-
-
-# Tiny helper Lane C may import:
-def utc_now() -> datetime:
-    return datetime.now(tz=UTC)
+    manifest.finished_at_utc = utc_now()
+    manifest.output_estimates_path = str(output_estimates_path.resolve())
+    if output_estimates_path.exists():
+        manifest.output_estimates_sha256 = sha256_file(output_estimates_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = manifest.model_dump(mode="json")
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    return output_path
 
 
-_ = uuid  # silence "imported but unused" until Lane C uses it
+def save_manifest(manifest: RunManifest, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True)
+    )

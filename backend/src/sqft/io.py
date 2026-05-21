@@ -1,18 +1,14 @@
-"""I/O helpers. Wave 0 stub — Lane C implements the real ones.
-
-Centralizes:
-- CSV input reader (validates against RawAddress)
-- Parquet readers/writers for each stage, enforcing the frozen column lists from schema.py
-- Path resolution helpers
-"""
+"""I/O helpers."""
 
 from __future__ import annotations
 
+import csv
 from collections.abc import Iterable
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pydantic import ValidationError
 
 from sqft.schema import (
     ESTIMATES_COLS,
@@ -20,6 +16,7 @@ from sqft.schema import (
     GEOCODED_COLS,
     NORMALIZED_COLS,
     QA_REVIEWS_COLS,
+    RawAddress,
 )
 
 # ---------------------------------------------------------------------------
@@ -28,18 +25,17 @@ from sqft.schema import (
 
 
 def data_path(data_dir: Path, *parts: str) -> Path:
-    """Resolve `data_dir / *parts`, creating parent dirs."""
     p = Path(data_dir, *parts)
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def interim_path(data_dir: Path, name: str) -> Path:
-    return data_path(data_dir, "interim", name)
+    return data_path(data_dir, "interim", f"{name}.parquet")
 
 
 def output_path(data_dir: Path, name: str) -> Path:
-    return data_path(data_dir, "output", name)
+    return data_path(data_dir, "output", f"{name}.parquet")
 
 
 # ---------------------------------------------------------------------------
@@ -47,21 +43,25 @@ def output_path(data_dir: Path, name: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def read_input_csv(path: Path) -> list[dict]:
-    """Read input addresses CSV. Wave 0 stub.
-
-    Lane C MUST:
-      - Validate each row against schema.RawAddress
-      - Raise with a precise row number on validation failure
-      - Return list[dict] (or pyarrow Table) suitable for downstream stages
-    """
-    raise NotImplementedError("Lane C: implement read_input_csv")
+def read_input_csv(path: Path) -> list[RawAddress]:
+    rows: list[RawAddress] = []
+    with path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for line_no, row in enumerate(reader, start=2):
+            state = (row.get("state") or "").strip()
+            if len(state) < 2:
+                state = "XX"
+            row["state"] = state
+            try:
+                rows.append(RawAddress.model_validate(row))
+            except ValidationError as exc:
+                raise ValueError(f"invalid row {line_no} in {path}: {exc}") from exc
+    return rows
 
 
 # ---------------------------------------------------------------------------
 # Parquet readers/writers
 # ---------------------------------------------------------------------------
-
 
 _COLS_BY_KIND: dict[str, tuple[str, ...]] = {
     "normalized": NORMALIZED_COLS,
@@ -73,14 +73,12 @@ _COLS_BY_KIND: dict[str, tuple[str, ...]] = {
 
 
 def expected_columns(kind: str) -> tuple[str, ...]:
-    """Return the frozen column list for a given parquet stage."""
     if kind not in _COLS_BY_KIND:
         raise KeyError(f"unknown parquet kind: {kind}; valid: {sorted(_COLS_BY_KIND)}")
     return _COLS_BY_KIND[kind]
 
 
 def read_parquet(path: Path, kind: str) -> pa.Table:
-    """Read parquet and validate column set matches the frozen contract for `kind`."""
     table = pq.read_table(path)
     expected = set(expected_columns(kind))
     actual = set(table.column_names)
@@ -95,18 +93,20 @@ def read_parquet(path: Path, kind: str) -> pa.Table:
 
 
 def write_parquet(rows: Iterable[dict], path: Path, kind: str) -> None:
-    """Write rows to parquet, enforcing the frozen column order for `kind`."""
     cols = expected_columns(kind)
     rows_list = list(rows)
     if not rows_list:
-        # Empty table with correct schema — use pyarrow's schema-from-empty trick.
         table = pa.table({c: pa.array([], type=pa.string()) for c in cols})
     else:
-        # Reorder + project columns
         projected = [{c: r.get(c) for c in cols} for r in rows_list]
         table = pa.Table.from_pylist(projected)
     path.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(table, path)
 
 
-# Lane C may also need: append_parquet, schema-coerced from pydantic, etc.
+def read_parquet_dicts(path: Path, kind: str) -> list[dict]:
+    return read_parquet(path, kind).to_pylist()
+
+
+def models_to_rows(models: Iterable, kind: str) -> list[dict]:
+    return [m.model_dump(mode="json") for m in models]

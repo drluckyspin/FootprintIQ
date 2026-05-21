@@ -1,13 +1,11 @@
-"""Pydantic settings loaded from config.yaml with env-var overrides.
-
-Wave 0 stub — Lane C implements `load_settings()`.
-"""
+"""Pydantic settings loaded from config.yaml with env-var overrides."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
+import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -43,13 +41,13 @@ class OvertureConfig(BaseModel):
     s3_path_template: str = (
         "s3://overturemaps-us-west-2/release/{release}/theme=buildings/type=building/"
     )
-    states_filter: tuple[str, ...] | None = None  # None => CONUS bbox
+    states_filter: tuple[str, ...] | None = None
 
 
 class SpatialConfig(BaseModel):
-    multi_building_rule: Literal["largest", "sum_within_radius", "largest_within_parcel"] = (
-        "largest_within_parcel"
-    )
+    multi_building_rule: Literal[
+        "largest", "sum_within_radius", "largest_within_parcel"
+    ] = "largest_within_parcel"
     search_buffer_meters: float = 25.0
     parcel_buffer_meters: float = 75.0
     nearest_k: int = 5
@@ -76,11 +74,6 @@ class PipelineConfig(BaseModel):
 
 
 class Settings(BaseSettings):
-    """Top-level settings. Loaded from config.yaml + env vars.
-
-    Env var override pattern: `SQFT_GEOCODER__PROVIDER=census` etc. (double underscore for nesting).
-    """
-
     model_config = SettingsConfigDict(
         env_prefix="SQFT_",
         env_nested_delimiter="__",
@@ -100,13 +93,12 @@ class Settings(BaseSettings):
 
 
 def load_settings(config_path: Path | None = None) -> Settings:
-    """Load settings from YAML + env. Wave 0 stub returns defaults.
-
-    Lane C MUST replace this with a real YAML loader that merges:
-    1. config.yaml file (if present)
-    2. env-var overrides (handled by pydantic-settings automatically)
-    """
-    if config_path is not None and not config_path.exists():
-        raise FileNotFoundError(f"config not found: {config_path}")
-    # Lane C: parse YAML and feed into Settings(**yaml_dict)
-    return Settings()
+    """Load settings from YAML at repo root config.yaml + env overrides."""
+    if config_path is None:
+        config_path = Path(__file__).resolve().parents[3] / "config.yaml"
+    data: dict[str, Any] = {}
+    if config_path.exists():
+        raw = yaml.safe_load(config_path.read_text()) or {}
+        if isinstance(raw, dict):
+            data = raw
+    return Settings(**data)
