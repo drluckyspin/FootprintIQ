@@ -1,0 +1,101 @@
+# Version: 1.2
+rules:
+  # ─── LLM01: Prompt Injection ────────────────────────────────────────────────
+  # Detects HTTP request data concatenated directly into prompt strings.
+  # Fix: validate/sanitize user input before including it in LLM prompts,
+  # or use a structured message format that separates data from instructions.
+
+  - id: llm01-prompt-injection-http-python
+    message: >
+      LLM01 Prompt Injection: HTTP request data is concatenated directly into a prompt.
+      User-controlled input can override instructions or exfiltrate context.
+      Validate and sanitize before including in LLM prompts.
+      See: https://owasp.org/www-project-top-10-for-large-language-model-applications/
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      - pattern: f"...{request.args.get(...)}..."
+      - pattern: f"...{request.form.get(...)}..."
+      - pattern: f"...{request.json.get(...)}..."
+      - pattern: f"...{request.args[...]}..."
+      - pattern: f"...{request.form[...]}..."
+      - pattern: f"...{request.data}..."
+    metadata:
+      category: security
+      owasp: LLM01
+      cwe: CWE-20
+
+  - id: llm01-prompt-injection-http-typescript
+    message: >
+      LLM01 Prompt Injection: HTTP request data is used in a template literal prompt.
+      User-controlled input can override instructions or exfiltrate context.
+      Validate and sanitize before including in LLM prompts.
+    severity: WARNING
+    languages: [typescript, javascript]
+    pattern-either:
+      - pattern: |
+          `...${$REQ.body.$FIELD}...`
+      - pattern: |
+          `...${$REQ.query.$FIELD}...`
+      - pattern: |
+          `...${$REQ.params.$FIELD}...`
+    metadata:
+      category: security
+      owasp: LLM01
+      cwe: CWE-20
+
+  # ─── LLM05: Insecure Output Handling ────────────────────────────────────────
+  # Detects LLM response content passed to dangerous sinks without validation.
+  # Fix: treat LLM output as untrusted input — sanitize before rendering,
+  # never pass directly to shell, eval, or raw HTML.
+
+  - id: llm05-llm-output-to-shell-python
+    message: >
+      LLM05 Insecure Output Handling: LLM response content passed to a shell or eval sink.
+      LLM output must be validated and sanitized before execution.
+      See: https://owasp.org/www-project-top-10-for-large-language-model-applications/
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: subprocess.run($R.choices[0].message.content, ...)
+      - pattern: subprocess.call($R.choices[0].message.content, ...)
+      - pattern: subprocess.Popen($R.choices[0].message.content, ...)
+      - pattern: os.system($R.choices[0].message.content)
+      - pattern: os.popen($R.choices[0].message.content)
+      - pattern: eval($R.choices[0].message.content)
+      - pattern: exec($R.choices[0].message.content)
+    metadata:
+      category: security
+      owasp: LLM05
+      cwe: CWE-116
+
+  - id: llm05-llm-output-to-template-python
+    message: >
+      LLM05 Insecure Output Handling: LLM response rendered in a Jinja2 template string.
+      This can lead to Server-Side Template Injection (SSTI).
+      Use render_template with a static template file instead.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: render_template_string($R.choices[0].message.content, ...)
+      - pattern: render_template_string($R.choices[0].message.content)
+    metadata:
+      category: security
+      owasp: LLM05
+      cwe: CWE-116
+
+  - id: llm05-llm-output-to-innerhtml-typescript
+    message: >
+      LLM05 Insecure Output Handling: LLM response set as innerHTML or document.write.
+      This can lead to Cross-Site Scripting (XSS).
+      Use textContent or a sanitizer (e.g. DOMPurify) before rendering LLM output as HTML.
+    severity: ERROR
+    languages: [typescript, javascript]
+    pattern-either:
+      - pattern: $EL.innerHTML = $R.choices[0].message.content
+      - pattern: document.write($R.choices[0].message.content)
+      - pattern: $EL.outerHTML = $R.choices[0].message.content
+    metadata:
+      category: security
+      owasp: LLM05
+      cwe: CWE-116

@@ -1,0 +1,60 @@
+# --- env / secrets ---
+.env
+.env.local
+.env.*.local
+*.bak
+.env.new
+
+# --- data (PII: never commit input addresses) ---
+# Ignore *contents* of data/ subdirs but keep the directory tree itself committable via .gitkeep files.
+data/input/*
+data/interim/*
+data/output/*
+!data/input/.gitkeep
+!data/interim/.gitkeep
+!data/output/.gitkeep
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.venv/
+venv/
+dist/
+build/
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts.bak
+
+# --- DuckDB / SQLite caches ---
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite-journal
+geocode_cache*.sqlite
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Editor ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Cursor / agent transcripts ---
+.cursor/plans/

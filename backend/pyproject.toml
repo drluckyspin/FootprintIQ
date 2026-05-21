@@ -1,0 +1,80 @@
+[project]
+name = "sqft-backend"
+version = "0.1.0"
+description = "Building Square Footage Estimator — pipeline for geocoding addresses, joining to Overture building footprints, and computing sqft estimates"
+requires-python = ">=3.11"
+dependencies = [
+    # Core
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "typer>=0.12",
+    "rich>=13.7",
+    "pyyaml>=6.0",
+    # Geospatial
+    "geopandas>=1.0",
+    "shapely>=2.0",
+    "pyproj>=3.6",
+    "pyarrow>=16.0",
+    "duckdb>=1.0",
+    # HTTP / address parsing
+    "httpx>=0.27",
+    "usaddress>=0.5.10",
+    # Reporting
+    "matplotlib>=3.8",
+    "jinja2>=3.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+    "syrupy>=4.6",
+    "ruff>=0.8",
+    "mypy>=1.10",
+    "types-PyYAML>=6.0",
+    "types-requests>=2.32",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sqft"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+"src/sqft/cli.py" = ["B008"]  # typer requires Argument/Option in defaults
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "lane_a: Lane A — address ingestion (normalize, dedup, geocode, places)",
+    "lane_b: Lane B — spatial (overture, parcels, spatial_join, area, floors, flags)",
+    "lane_c: Lane C — pipeline (manifest, io, pipeline, cli, validate, config)",
+    "smoke: Wave 0 smoke tests (run by default; no lane required)",
+]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+files = ["src/sqft"]
+
+[[tool.mypy.overrides]]
+module = ["geopandas.*", "shapely.*", "pyproj.*", "duckdb.*", "usaddress.*", "matplotlib.*"]
+ignore_missing_imports = true

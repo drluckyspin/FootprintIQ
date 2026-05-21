@@ -1,0 +1,68 @@
+# Version: 1.1
+# Pre-commit hooks for Code Red projects — linting and security scanning.
+#
+# Tools are installed via uv tool install / brew / bun — not managed by pre-commit itself.
+# Run 'make setup-security' to install all tools and activate the git hook.
+# Run 'make check-security' to run all security hooks manually against the full codebase.
+#
+# Linting hooks:
+#   ruff    → Python linting and import sorting (replaces flake8 + isort)
+#
+# Security hooks (OWASP coverage):
+#   detect-secrets  → A02, LLM02 (secret / credential leakage)
+#   bandit          → A03       (Python injection and insecure patterns)
+#   semgrep         → A01, A03, A05, A07, A10, LLM01, LLM05
+#   osv-scanner     → A06, A08, LLM03 (vulnerable deps — Python + JS via bun.lock)
+#   checkov         → A01, A05, A07, LLM06 (Docker + IaC misconfig)
+#
+# Trivy excluded: March 2026 supply chain attack compromised the binary and GitHub Action.
+# tfsec excluded: merged into Trivy. IaC scanning covered by checkov.
+# pip-audit excluded: osv-scanner covers the same OSV database plus bun.lock in one pass.
+
+repos:
+  - repo: local
+    hooks:
+      # ── Python linting ──────────────────────────────────────────────────────
+      - id: ruff
+        name: ruff
+        language: system
+        entry: ruff check
+        files: '\.py$'
+
+      # ── Secrets detection ───────────────────────────────────────────────────
+      - id: detect-secrets
+        name: detect-secrets
+        language: system
+        entry: detect-secrets-hook
+        args: ['--baseline', '.secrets.baseline']
+
+      # ── Python SAST (MEDIUM+ severity) ──────────────────────────────────────
+      - id: bandit
+        name: bandit
+        language: system
+        entry: bandit
+        args: ['-ll']
+        files: '\.py$'
+
+      # ── General SAST + custom LLM rules ─────────────────────────────────────
+      - id: semgrep
+        name: semgrep
+        language: system
+        entry: semgrep scan --config p/python --config p/typescript --config p/secrets --config .semgrep/ --error --quiet
+        pass_filenames: false
+
+      # ── Dependency vulnerability scanning (Python + JS/Bun) ─────────────────
+      - id: osv-scanner
+        name: osv-scanner
+        language: system
+        entry: osv-scanner scan --recursive . --config osv-scanner.toml
+        pass_filenames: false
+
+      # ── IaC and Docker misconfiguration ─────────────────────────────────────
+      - id: checkov
+        name: checkov
+        language: system
+        entry: checkov --quiet --skip-check CKV_DOCKER_2
+        args: ['-d', '.']
+        pass_filenames: false
+        files: 'Dockerfile|docker-compose.*\.yml'

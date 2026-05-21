@@ -1,0 +1,55 @@
+# sqft estimator pipeline config.
+# Loaded by sqft.config.load_settings(); env vars (SQFT_*) override these values.
+
+geocoder:
+  provider: google
+  api_key_env: GOOGLE_GEOCODING_API_KEY
+  places_api_key_env: GOOGLE_PLACES_API_KEY
+  min_acceptable_precision: RANGE_INTERPOLATED
+  concurrency: 20
+  rate_limit_qps: 40
+  retry_attempts: 3
+  cache_path: data/interim/geocode_cache.sqlite
+  chain_tokens:
+    - walmart
+    - target
+    - amazon
+    - costco
+    - kroger
+    - home depot
+    - lowe's
+    - best buy
+    - sam's club
+    - fedex
+    - ups
+
+overture:
+  release: latest
+  s3_path_template: "s3://overturemaps-us-west-2/release/{release}/theme=buildings/type=building/"
+  states_filter: null
+
+spatial:
+  multi_building_rule: largest_within_parcel
+  search_buffer_meters: 25
+  parcel_buffer_meters: 75
+  nearest_k: 5
+
+floors:
+  default: 1
+  height_per_floor_meters: 4.0
+  prefer: [num_floors, height]
+  max_floors_cap: 50
+  max_height_meters_for_inference: 80.0
+
+output:
+  units: square_feet
+  decimals: 0
+
+pipeline:
+  resume: true
+  sample_size: null
+  max_cost_usd: 50.0
+  require_confirm_above_usd: 50.0
+
+data_dir: data
+log_level: INFO

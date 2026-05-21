@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install backend deps
+        working-directory: backend
+        run: uv sync --frozen || uv sync
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Rebuild fixtures (deterministic, idempotent)
+        working-directory: backend
+        run: uv run python ../tests/fixtures/build_fixtures.py
+
+      - name: Smoke tests
+        working-directory: backend
+        run: uv run pytest -m smoke
+
+      - name: Lane tests (lanes flip skip -> active once implemented)
+        working-directory: backend
+        run: uv run pytest -m "lane_a or lane_b or lane_c"
+
+      - name: Backend lint
+        working-directory: backend
+        run: uv run ruff check . && uv run ruff format --check .
+
+      - name: Backend typecheck
+        working-directory: backend
+        run: uv run mypy src/sqft
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: bun run test
+
+      - name: Frontend typecheck
+        working-directory: frontend
+        run: bunx tsc --noEmit
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: bunx @biomejs/biome check .
