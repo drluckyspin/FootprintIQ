@@ -17,7 +17,7 @@ from sqft.config import Settings, load_settings
 from sqft.dedup import build_address_key_index, unique_addresses
 from sqft.flags import evaluate_flags, resolve_confidence
 from sqft.floors import resolve_floors
-from sqft.geocode import GeocodeCache, geocode_batch
+from sqft.geocode import GeocodeCache, geocode_batch, has_usable_coordinates
 from sqft.manifest import finalize_manifest, manifest_output_path, save_manifest, start_manifest
 from sqft.normalize import normalize_addresses
 from sqft.overture import fetch_footprints, resolve_release
@@ -29,7 +29,10 @@ from sqft.schema import (
     GeocoderPrecision,
     NormalizedAddress,
 )
+from sqft.log import get_logger
 from sqft.spatial_join import join_points_to_buildings
+
+logger = get_logger("pipeline")
 
 
 def _repo_root() -> Path:
@@ -57,6 +60,24 @@ def _footprint_lookup(footprints_path: Path) -> dict[str, dict]:
     return {str(r["id"]): r for r in df.to_dict(orient="records")}
 
 
+def _optional_float(val: object) -> float | None:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    return float(val)
+
+
+def _optional_int(val: object) -> int | None:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    return int(val)
+
+
+def _optional_str(val: object) -> str | None:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    return str(val)
+
+
 def _build_estimate_rows(
     matches: list[BuildingMatch],
     normalized: list[NormalizedAddress],
@@ -81,9 +102,9 @@ def _build_estimate_rows(
         chosen = next((c for c in match.candidates if c.is_chosen), None)
         fp = fp_by_id.get(match.chosen_building_id or "") if match.chosen_building_id else None
         footprint_area = chosen.area_sqft if chosen else None
-        height_m = float(fp["height"]) if fp and fp.get("height") is not None else None
-        num_floors_attr = int(fp["num_floors"]) if fp and fp.get("num_floors") is not None else None
-        subtype = fp.get("overture_subtype") if fp else None
+        height_m = _optional_float(fp["height"]) if fp else None
+        num_floors_attr = _optional_int(fp["num_floors"]) if fp else None
+        subtype = _optional_str(fp.get("overture_subtype")) if fp else None
 
         floors_used, floors_source = resolve_floors(
             num_floors_attr,
@@ -117,9 +138,9 @@ def _build_estimate_rows(
             raw_overture_height=height_m,
             raw_overture_num_floors=num_floors_attr,
             estimated_sqft=estimated,
-            overture_class=fp.get("overture_class") if fp else None,
+            overture_class=_optional_str(fp.get("overture_class")) if fp else None,
             overture_subtype=subtype,
-            overture_source=fp.get("overture_source") if fp else None,
+            overture_source=_optional_str(fp.get("overture_source")) if fp else None,
             overture_update_time=fp.get("overture_update_time") if fp else None,
             overture_release=overture_release,
             pipeline_run_id=pipeline_run_id,
@@ -159,6 +180,14 @@ def run_pipeline(
     config_path = config_path or _repo_root() / "config.yaml"
     overture_release = resolve_release(settings.overture)
 
+    logger.info(
+        "pipeline start input=%s run_id=pending fixtures=%s resume=%s data_dir=%s",
+        input_csv,
+        use_fixtures(),
+        resume,
+        data_dir,
+    )
+
     raw = io.read_input_csv(input_csv)
     if settings.pipeline.sample_size:
         raw = raw[: settings.pipeline.sample_size]
@@ -179,6 +208,12 @@ def run_pipeline(
     est_path = io.output_path(data_dir, "estimates")
 
     if resume and est_path.exists():
+        logger.warning(
+            "resume: %s already exists — skipping all stages (no Google/Overture calls). "
+            "Re-run with: rm %s && make sample  OR  cli run-all --no-resume",
+            est_path,
+            est_path,
+        )
         finalize_manifest(manifest, manifest_path, est_path)
         return est_path
 
@@ -188,21 +223,26 @@ def run_pipeline(
             NormalizedAddress.model_validate(r)
             for r in io.read_parquet_dicts(norm_path, "normalized")
         ]
+        logger.info("stage normalize: skipped (cached %s)", norm_path)
         _record_stage(manifest, "normalize", row_count=len(normalized), duration=0.0, skipped=True)
     else:
         t0 = time.perf_counter()
+        logger.info("stage normalize: %d input rows", len(raw))
         normalized = normalize_addresses(raw, settings.geocoder.chain_tokens)
         io.write_parquet(
             io.models_to_rows(normalized, "normalized"), norm_path, "normalized"
         )
-        _record_stage(
-            manifest, "normalize", row_count=len(normalized), duration=time.perf_counter() - t0
-        )
+        elapsed = time.perf_counter() - t0
+        logger.info("stage normalize: done rows=%d elapsed=%.2fs -> %s", len(normalized), elapsed, norm_path)
+        _record_stage(manifest, "normalize", row_count=len(normalized), duration=elapsed)
 
     dedup_index = build_address_key_index(normalized)
+    unique = unique_addresses(normalized)
+    logger.info("dedup: %d locations -> %d unique address_keys", len(normalized), len(unique))
 
     # geocode
     if use_fixtures():
+        logger.info("stage geocode: skipped (SQFT_USE_FIXTURES — copying fixture, no Google API calls)")
         _copy_fixture("geocoded.parquet", geo_path)
         geocoded_models = [
             GeocodeResult.model_validate(r)
@@ -211,7 +251,8 @@ def run_pipeline(
         _record_stage(
             manifest, "geocode", row_count=len(geocoded_models), duration=0.0, skipped=True
         )
-    elif resume and geo_path.exists() and "geocode" in manifest.stage_row_counts:
+    elif resume and geo_path.exists():
+        logger.info("stage geocode: skipped (cached %s)", geo_path)
         geocoded_models = [
             GeocodeResult.model_validate(r)
             for r in io.read_parquet_dicts(geo_path, "geocoded")
@@ -220,29 +261,45 @@ def run_pipeline(
     else:
         t0 = time.perf_counter()
         cache = GeocodeCache(settings.geocoder.cache_path)
-        geocoded_models = asyncio.run(
-            geocode_batch(unique_addresses(normalized), settings.geocoder, cache)
+        logger.info(
+            "stage geocode: calling Google for %d unique addresses (cache=%s)",
+            len(unique),
+            settings.geocoder.cache_path,
         )
+        geocoded_models = asyncio.run(geocode_batch(unique, settings.geocoder, cache))
+        usable = sum(1 for g in geocoded_models if has_usable_coordinates(g))
         io.write_parquet(
             io.models_to_rows(geocoded_models, "geocoded"), geo_path, "geocoded"
         )
-        _record_stage(
-            manifest, "geocode", row_count=len(geocoded_models), duration=time.perf_counter() - t0
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            "stage geocode: done usable=%d/%d elapsed=%.2fs -> %s",
+            usable,
+            len(geocoded_models),
+            elapsed,
+            geo_path,
         )
+        _record_stage(manifest, "geocode", row_count=len(geocoded_models), duration=elapsed)
 
     # footprints
     if use_fixtures():
+        logger.info("stage footprints: skipped (SQFT_USE_FIXTURES — copying fixture, no Overture S3 query)")
         _copy_fixture("footprints.parquet", fp_path)
         _record_stage(manifest, "footprints", duration=0.0, skipped=True)
-    elif resume and fp_path.exists() and "footprints" in manifest.stage_row_counts:
+    elif resume and fp_path.exists():
+        logger.info("stage footprints: skipped (cached %s)", fp_path)
         _record_stage(manifest, "footprints", duration=0.0, skipped=True)
     else:
         t0 = time.perf_counter()
+        logger.info("stage footprints: querying Overture Maps over S3")
         fetch_footprints(geocoded_models, settings.overture, fp_path)
-        _record_stage(manifest, "footprints", duration=time.perf_counter() - t0)
+        elapsed = time.perf_counter() - t0
+        logger.info("stage footprints: done elapsed=%.2fs -> %s", elapsed, fp_path)
+        _record_stage(manifest, "footprints", duration=elapsed)
 
     # spatial join + estimate
     t0 = time.perf_counter()
+    logger.info("stage spatial_join: matching points to footprints")
     matches = join_points_to_buildings(
         geocoded_models,
         fp_path,
@@ -251,9 +308,18 @@ def run_pipeline(
         NullParcelProvider(),
         location_types,
     )
-    _record_stage(manifest, "spatial_join", row_count=len(matches), duration=time.perf_counter() - t0)
+    join_elapsed = time.perf_counter() - t0
+    matched = sum(1 for m in matches if m.chosen_building_id)
+    logger.info(
+        "stage spatial_join: done matched=%d/%d elapsed=%.2fs",
+        matched,
+        len(matches),
+        join_elapsed,
+    )
+    _record_stage(manifest, "spatial_join", row_count=len(matches), duration=join_elapsed)
 
     t0 = time.perf_counter()
+    logger.info("stage estimate: building output rows")
     estimates = _build_estimate_rows(
         matches,
         normalized,
@@ -265,7 +331,10 @@ def run_pipeline(
         location_types,
     )
     io.write_parquet(io.models_to_rows(estimates, "estimates"), est_path, "estimates")
-    _record_stage(manifest, "estimate", row_count=len(estimates), duration=time.perf_counter() - t0)
+    est_elapsed = time.perf_counter() - t0
+    logger.info("stage estimate: done rows=%d elapsed=%.2fs -> %s", len(estimates), est_elapsed, est_path)
+    _record_stage(manifest, "estimate", row_count=len(estimates), duration=est_elapsed)
 
     finalize_manifest(manifest, manifest_path, est_path)
+    logger.info("pipeline complete run_id=%s manifest=%s", manifest.pipeline_run_id, manifest_path)
     return est_path

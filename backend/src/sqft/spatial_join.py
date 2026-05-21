@@ -14,10 +14,18 @@ from shapely.ops import transform
 
 from sqft.area import polygon_area_sqft
 from sqft.config import SpatialConfig
+from sqft.geocode import has_usable_coordinates
 from sqft.parcels import ParcelProvider
 from sqft.schema import BuildingMatch, CandidateBuilding, GeocodeResult, MatchMethod
 
 _COMMERCIAL_CLASSES = frozenset({"commercial", "industrial", "retail"})
+
+
+def _optional_str(val: object) -> str | None:
+    """Coerce parquet nulls (NaN) to None for Pydantic string fields."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    return str(val)
 
 
 @lru_cache(maxsize=1)
@@ -52,8 +60,8 @@ def _load_footprints(footprints_parquet: Path) -> list[_FootprintRow]:
                 id=rec["id"],
                 geometry=geom,
                 area_sqft=polygon_area_sqft(geom),
-                overture_class=rec.get("overture_class"),
-                overture_subtype=rec.get("overture_subtype"),
+                overture_class=_optional_str(rec.get("overture_class")),
+                overture_subtype=_optional_str(rec.get("overture_subtype")),
             )
         )
     return rows
@@ -144,7 +152,7 @@ def _match_point(
     parcels: ParcelProvider,
     location_type: str | None,
 ) -> BuildingMatch:
-    if geocode.lat is None or geocode.lon is None or geocode.status != "ok":
+    if not has_usable_coordinates(geocode):
         return BuildingMatch(
             location_id=location_id,
             address_key=address_key,

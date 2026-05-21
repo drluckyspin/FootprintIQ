@@ -18,6 +18,7 @@ import type {
 } from "./api-contract";
 import { FLAG_EXPLANATIONS } from "./flag-copy";
 import { getConnection, parquetFromSql, parquetPath, repoRoot } from "./duckdb";
+import { sqftLog } from "./log";
 import {
   CandidateBuildingSchema,
   EstimateRowSchema,
@@ -55,8 +56,10 @@ function activeFlags(row: EstimateRow): { key: FlagKey; explanation: string }[] 
 }
 
 export async function listLocations(q: ListLocationsQuery): Promise<ListLocationsResponse> {
+  sqftLog.info("queries", `listLocations limit=${q.limit} offset=${q.offset}`, q);
   const conn = await getConnection();
   const est = parquetFromSql("estimates");
+  sqftLog.debug("queries", `reading estimates parquet ${est}`);
   const conditions: string[] = [];
   const params: DuckDBValue[] = [];
 
@@ -95,12 +98,14 @@ export async function listLocations(q: ListLocationsQuery): Promise<ListLocation
   const sql = `SELECT * FROM read_parquet(${est}) ${where} ORDER BY location_id LIMIT ? OFFSET ?`;
   const reader = await conn.runAndReadAll(sql, [...params, q.limit, q.offset]);
   const rows = reader.getRowObjects().map((r) => rowToEstimate(r as Record<string, unknown>));
+  sqftLog.info("queries", `listLocations returned ${rows.length} of ${total}`);
   return { rows, total };
 }
 
 export async function getLocationDetail(
   locationId: string,
 ): Promise<LocationDetailResponse | null> {
+  sqftLog.info("queries", `getLocationDetail id=${locationId}`);
   const conn = await getConnection();
   const est = parquetFromSql("estimates");
   const fp = parquetFromSql("footprints");

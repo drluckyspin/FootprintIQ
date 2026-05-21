@@ -9,6 +9,22 @@ import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Repo root (backend/src/sqft -> ../../../)
+REPO_ROOT = Path(__file__).resolve().parents[3]
+ROOT_ENV_FILE = REPO_ROOT / ".env"
+
+
+def _load_root_dotenv() -> None:
+    """Load repo-root .env into os.environ (GOOGLE_* keys, SQFT_*, etc.)."""
+    if not ROOT_ENV_FILE.exists():
+        return
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(ROOT_ENV_FILE, override=False)
+    except ImportError:
+        pass
+
 
 class GeocoderConfig(BaseModel):
     provider: Literal["google", "census"] = "google"
@@ -77,7 +93,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="SQFT_",
         env_nested_delimiter="__",
-        env_file=".env",
+        env_file=str(ROOT_ENV_FILE) if ROOT_ENV_FILE.exists() else None,
         extra="ignore",
     )
 
@@ -94,11 +110,16 @@ class Settings(BaseSettings):
 
 def load_settings(config_path: Path | None = None) -> Settings:
     """Load settings from YAML at repo root config.yaml + env overrides."""
+    _load_root_dotenv()
     if config_path is None:
-        config_path = Path(__file__).resolve().parents[3] / "config.yaml"
+        config_path = REPO_ROOT / "config.yaml"
     data: dict[str, Any] = {}
     if config_path.exists():
         raw = yaml.safe_load(config_path.read_text()) or {}
         if isinstance(raw, dict):
             data = raw
-    return Settings(**data)
+    settings = Settings(**data)
+    from sqft.log import configure_logging
+
+    configure_logging(settings.log_level)
+    return settings

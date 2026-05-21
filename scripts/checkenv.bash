@@ -39,7 +39,7 @@
 # Examples:
 #   ./checkenv.bash                                    # Check only .env
 #   ./checkenv.bash .env.test                          # Check only .env.test
-#   ./checkenv.bash .env apps/frontend/.env            # Check both files in order
+#   ./checkenv.bash .env.other                         # Check another env file
 #   ./checkenv.bash --merge                            # Merge .env with .env.example, output to .env.new
 #   ./checkenv.bash --merge .env                       # Merge .env with .env.example, output to .env.new
 #   ./checkenv.bash --verbose .env.test                # Verbose output while checking .env.test
@@ -76,7 +76,7 @@ show_help() {
     log "${BLUE}Examples${RESET}:"
     log_dim "  $0                                    # Check only .env"
     log_dim "  $0 .env.test                          # Check only .env.test"
-    log_dim "  $0 .env apps/frontend/.env            # Check both files in order"
+    log_dim "  $0 .env.other                         # Check another env file"
     log_dim "  $0 --merge                            # Merge .env with .env.example, output to .env.new"
     log_dim "  $0 --merge .env                       # Merge .env with .env.example, output to .env.new"
     log_dim "  $0 --verbose .env.test                # Verbose output while checking .env.test"

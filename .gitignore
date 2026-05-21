@@ -1,7 +1,11 @@
-# --- env / secrets ---
+# --- env / secrets (repo root only) ---
 .env
 .env.local
 .env.*.local
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
 *.bak
 .env.new
 
@@ -10,6 +14,7 @@
 data/input/*
 data/interim/*
 data/output/*
+backend/data/
 !data/input/.gitkeep
 !data/interim/.gitkeep
 !data/output/.gitkeep

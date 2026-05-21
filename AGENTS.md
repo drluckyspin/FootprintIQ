@@ -109,7 +109,7 @@ Validates `.env` files against `.env.example`. Called automatically by `make che
 ./scripts/checkenv.bash
 
 # Check multiple files (e.g. multi-app project)
-./scripts/checkenv.bash .env apps/frontend/.env
+./scripts/checkenv.bash .env
 
 # Non-interactive merge (CI/CD)
 ./scripts/checkenv.bash --merge

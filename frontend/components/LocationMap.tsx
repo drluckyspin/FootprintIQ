@@ -3,7 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useMemo } from "react";
-import Map, { Layer, Marker, Source } from "react-map-gl/maplibre";
+import MapGL, { Layer, Marker, Source } from "react-map-gl/maplibre";
 
 import type { LocationDetailResponse } from "@/lib/api-contract";
 
@@ -35,7 +35,7 @@ export function LocationMap({ detail }: Props) {
 
   return (
     <div className="h-[420px] w-full overflow-hidden rounded border border-[var(--border)]">
-      <Map
+      <MapGL
         initialViewState={{ latitude: lat, longitude: lon, zoom: 17 }}
         mapStyle={{
           version: 8,
@@ -66,7 +66,7 @@ export function LocationMap({ detail }: Props) {
           </Source>
         ) : null}
         <Marker latitude={lat} longitude={lon} color="#ef4444" />
-      </Map>
+      </MapGL>
     </div>
   );
 }

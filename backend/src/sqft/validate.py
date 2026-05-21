@@ -11,6 +11,9 @@ from pathlib import Path
 import pandas as pd
 
 from sqft.io import read_parquet_dicts
+from sqft.log import get_logger
+
+logger = get_logger("validate")
 
 
 def _decile_bins(series: pd.Series, k: int = 10) -> pd.Series:
@@ -23,6 +26,7 @@ def generate_report(
     output_html: Path,
     ground_truth_csv: Path | None = None,
 ) -> Path:
+    logger.info("generate_report reading %s", estimates_path)
     df = pd.read_parquet(estimates_path)
     total = len(df)
     matched = (df["building_id"].notna()).sum() if "building_id" in df.columns else 0
@@ -74,6 +78,13 @@ def generate_report(
 
     output_html.parent.mkdir(parents=True, exist_ok=True)
     output_html.write_text(body, encoding="utf-8")
+    logger.info(
+        "generate_report wrote %s (rows=%d geocoded=%d matched=%d)",
+        output_html,
+        total,
+        geocoded,
+        matched,
+    )
     return output_html
 
 
@@ -83,6 +94,7 @@ def generate_qa_worksheet(
     n: int = 200,
     seed: int = 0,
 ) -> Path:
+    logger.info("generate_qa_worksheet reading %s n=%d seed=%d", estimates_path, n, seed)
     df = pd.read_parquet(estimates_path)
     if df.empty:
         output_csv.write_text(
@@ -126,4 +138,5 @@ def generate_qa_worksheet(
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(output_csv, index=False, quoting=csv.QUOTE_MINIMAL)
+    logger.info("generate_qa_worksheet wrote %s rows=%d", output_csv, len(out))
     return output_csv

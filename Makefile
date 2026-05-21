@@ -80,19 +80,30 @@ typecheck: check_uv check_bun
 	@$(LOGGER) log_info "tsc --noEmit frontend"
 	@cd frontend && bunx tsc --noEmit
 
-.PHONY: sample ## Run pipeline on the 500-row sample CSV
-sample: check_uv
-	@cd backend && uv run python -m sqft.cli run-all ../tests/fixtures/sample_addresses.csv --sample-size 500
+.PHONY: demo ## Run pipeline on sample_addresses.csv using fixture parquets (no API keys)
+demo: check_uv
+	@$(LOGGER) log_info "Running pipeline on sample_addresses.csv using fixture parquets (no API keys)"
+	@bash -ec 'source scripts/loadenv.bash && load_root_env && cd backend && SQFT_USE_FIXTURES=1 uv run python -m sqft.cli run-all ../tests/fixtures/sample_addresses.csv --fixtures'
+
+.PHONY: stac-cache ## Build Overture building parquet index (one-time; cached under data/interim/)
+stac-cache: check_uv
+	@$(LOGGER) log_info "Building Overture STAC/S3 building file index (cached for make sample)"
+	@bash -ec 'source scripts/loadenv.bash && load_root_env && cd backend && uv run python -m sqft.cli stac-cache'
+
+.PHONY: sample ## Live pipeline on sample_addresses.csv (Google + Overture; re-runs all stages)
+sample: check_uv stac-cache
+	@$(LOGGER) log_info "Live sample run (--no-resume; uses GOOGLE_* keys from .env)"
+	@bash -ec 'source scripts/loadenv.bash && load_root_env && cd backend && uv run python -m sqft.cli run-all ../tests/fixtures/sample_addresses.csv --sample-size 500 --no-resume'
 
 .PHONY: full ## Run pipeline on the full 22K (requires --max-cost-usd confirmation)
 full: check_uv
 	@$(LOGGER) log_warning "About to run on full 22K input — make sure data/input/all.csv exists"
-	@cd backend && uv run python -m sqft.cli run-all ../data/input/all.csv --max-cost-usd 250
+	@bash -ec 'source scripts/loadenv.bash && load_root_env && cd backend && uv run python -m sqft.cli run-all ../data/input/all.csv --max-cost-usd 250'
 
 .PHONY: viz ## Start the visualizer frontend dev server (http://localhost:3000)
 viz: check_bun
-	@cd frontend && bun run dev
+	@bash -ec 'source scripts/loadenv.bash && load_root_env && cd frontend && echo "SQFT_LOG_LEVEL=$$SQFT_LOG_LEVEL" && bun run dev'
 
 .PHONY: report ## Render data/output/report.html from the latest run
 report: check_uv
-	@cd backend && uv run python -m sqft.cli validate
+	@bash -ec 'source scripts/loadenv.bash && load_root_env && cd backend && uv run python -m sqft.cli validate'

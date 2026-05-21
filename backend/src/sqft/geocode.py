@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from collections import Counter
 import sqlite3
 import time
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from urllib.parse import urlencode
 import httpx
 
 from sqft.config import GeocoderConfig
+from sqft.log import get_logger
 from sqft.places import place_details, text_search, to_geocode_result
 from sqft.schema import (
     GeocodeResult,
@@ -35,6 +37,17 @@ _PRECISION_RANK = {
 
 PLACES_COST_PER_1K = 32.0
 GEOCODING_COST_PER_1K = 5.0
+
+logger = get_logger("geocode")
+
+
+def has_usable_coordinates(result: GeocodeResult) -> bool:
+    """True when downstream stages (Overture bbox, spatial join) can use this point."""
+    return (
+        result.lat is not None
+        and result.lon is not None
+        and result.status in ("ok", "low_precision")
+    )
 
 
 class GeocodeCache:
@@ -210,6 +223,12 @@ async def _geocode_one(
     cached = cache.get(address.address_key)
     if cached is not None:
         cached.provider = GeocoderProvider.CACHE
+        logger.debug(
+            "cache hit address_key=%s status=%s precision=%s",
+            address.address_key,
+            cached.status,
+            cached.precision,
+        )
         return cached
 
     last_error: Exception | None = None
@@ -218,6 +237,12 @@ async def _geocode_one(
             await limiter.acquire()
             raw_payload: dict[str, Any]
             if address.chain_token:
+                logger.info(
+                    "API Google Places text_search address_key=%s chain=%s (attempt %d)",
+                    address.address_key,
+                    address.chain_token,
+                    attempt + 1,
+                )
                 ts = await text_search(client, places_key, address)
                 if ts is None:
                     result = GeocodeResult(
@@ -230,19 +255,44 @@ async def _geocode_one(
                     return result
                 place_id = ts["results"][0]["place_id"]
                 await limiter.acquire()
+                logger.debug("API Google Places details place_id=%s", place_id)
                 details = await place_details(client, places_key, place_id)
                 result = to_geocode_result(address, ts, details)
                 raw_payload = {"text_search": ts, "details": details}
             else:
+                logger.info(
+                    "API Google Geocoding address_key=%s (attempt %d)",
+                    address.address_key,
+                    attempt + 1,
+                )
                 result, raw_payload = await _geocode_google(client, geocode_key, address)
 
-            if not _meets_precision(result, config) and result.status == "ok":
-                result.status = "low_precision"
+            if result.status == "ok" and not _meets_precision(result, config):
+                logger.info(
+                    "geocode below min precision address_key=%s precision=%s (keeping coordinates for pipeline)",
+                    address.address_key,
+                    result.precision,
+                )
 
+            logger.debug(
+                "geocoded address_key=%s provider=%s status=%s precision=%s lat=%s lon=%s",
+                address.address_key,
+                result.provider,
+                result.status,
+                result.precision,
+                result.lat,
+                result.lon,
+            )
             cache.put(address.address_key, result, raw_payload)
             return result
         except (httpx.HTTPStatusError, httpx.TransportError) as exc:
             last_error = exc
+            logger.warning(
+                "geocode HTTP error address_key=%s attempt=%d: %s",
+                address.address_key,
+                attempt + 1,
+                exc,
+            )
             if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code not in (
                 429,
                 500,
@@ -275,6 +325,25 @@ async def geocode_batch(
 
     places_key = places_api_key or os.environ.get(config.places_api_key_env, "")
     geocode_key = geocoding_api_key or os.environ.get(config.api_key_env, "")
+    if not places_key:
+        logger.warning(
+            "missing %s — chain addresses will fail Places lookup",
+            config.places_api_key_env,
+        )
+    if not geocode_key:
+        logger.warning(
+            "missing %s — non-chain addresses will fail Geocoding lookup",
+            config.api_key_env,
+        )
+    chain_n = sum(1 for a in addresses if a.chain_token)
+    logger.info(
+        "geocode_batch start total=%d chain=%d non_chain=%d concurrency=%d qps=%d",
+        len(addresses),
+        chain_n,
+        len(addresses) - chain_n,
+        config.concurrency,
+        config.rate_limit_qps,
+    )
     limiter = _RateLimiter(config.rate_limit_qps)
     sem = asyncio.Semaphore(config.concurrency)
 
@@ -285,7 +354,28 @@ async def geocode_batch(
                     client, addr, config, cache, limiter, places_key, geocode_key
                 )
 
-    return list(await asyncio.gather(*[_run(a) for a in addresses]))
+    results = list(await asyncio.gather(*[_run(a) for a in addresses]))
+    providers = Counter(r.provider for r in results)
+    statuses = Counter(r.status for r in results)
+    usable = sum(1 for r in results if has_usable_coordinates(r))
+    logger.info(
+        "geocode_batch done providers=%s statuses=%s usable_coordinates=%d/%d",
+        dict(providers),
+        dict(statuses),
+        usable,
+        len(results),
+    )
+    failed = [r for r in results if r.status == "failed"]
+    if failed:
+        for row in failed[:5]:
+            logger.warning(
+                "geocode failed address_key=%s error=%s",
+                row.address_key,
+                row.error,
+            )
+        if len(failed) > 5:
+            logger.warning("... and %d more geocode failures", len(failed) - 5)
+    return results
 
 
 def estimate_cost_usd(

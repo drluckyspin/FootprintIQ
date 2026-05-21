@@ -13,7 +13,7 @@ from sqft.area import polygon_area_sqft
 from sqft.config import FloorsConfig, SpatialConfig
 from sqft.flags import FLAG_PREDICATES, evaluate_flags, resolve_confidence
 from sqft.floors import resolve_floors
-from sqft.overture import compute_bbox
+from sqft.overture import bbox_intersects, compute_bbox, query_bboxes, _https_s3_to_uri
 from sqft.parcels import NullParcelProvider
 from sqft.schema import (
     Confidence,
@@ -193,3 +193,66 @@ def test_overture_compute_bbox_pads_correctly() -> None:
     ]
     bbox = compute_bbox(geocoded, padding_deg=0.01)
     assert bbox == pytest.approx((-97.01, 29.99, -95.99, 31.01))
+
+
+def test_query_bboxes_splits_nationwide_sample() -> None:
+    geocoded = [
+        GeocodeResult(
+            address_key="west",
+            lat=32.7,
+            lon=-117.1,
+            precision=GeocoderPrecision.ROOFTOP,
+            provider=GeocoderProvider.GOOGLE_GEOCODING,
+            status="ok",
+        ),
+        GeocodeResult(
+            address_key="east",
+            lat=40.8,
+            lon=-73.0,
+            precision=GeocoderPrecision.ROOFTOP,
+            provider=GeocoderProvider.GOOGLE_GEOCODING,
+            status="ok",
+        ),
+    ]
+    boxes = query_bboxes(geocoded, padding_deg=0.005)
+    assert len(boxes) == 2
+
+
+def test_https_s3_to_uri() -> None:
+    url = (
+        "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/"
+        "release/2026-05-20.0/theme=buildings/type=building/part-00000.zstd.parquet"
+    )
+    assert _https_s3_to_uri(url) == (
+        "s3://overturemaps-us-west-2/release/2026-05-20.0/theme=buildings/type=building/part-00000.zstd.parquet"
+    )
+
+
+def test_bbox_intersects() -> None:
+    denver = (-105.1, 39.6, -104.9, 39.8)
+    inside = (-105.05, 39.65, -104.95, 39.75)
+    outside = (-74.0, 40.7, -73.9, 40.8)
+    assert bbox_intersects(denver, inside)
+    assert not bbox_intersects(denver, outside)
+
+
+def test_query_bboxes_single_aggregate_when_nearby() -> None:
+    geocoded = [
+        GeocodeResult(
+            address_key="a",
+            lat=30.0,
+            lon=-97.0,
+            precision=GeocoderPrecision.ROOFTOP,
+            provider=GeocoderProvider.GOOGLE_GEOCODING,
+            status="ok",
+        ),
+        GeocodeResult(
+            address_key="b",
+            lat=30.05,
+            lon=-97.05,
+            precision=GeocoderPrecision.ROOFTOP,
+            provider=GeocoderProvider.GOOGLE_GEOCODING,
+            status="ok",
+        ),
+    ]
+    assert len(query_bboxes(geocoded)) == 1
