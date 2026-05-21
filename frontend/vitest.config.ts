@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -8,6 +9,9 @@ export default defineConfig({
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
   },
   resolve: {
-    alias: { "@": "." },
+    alias: {
+      "@": ".",
+      "server-only": path.resolve(__dirname, "tests/mocks/server-only.ts"),
+    },
   },
 });
