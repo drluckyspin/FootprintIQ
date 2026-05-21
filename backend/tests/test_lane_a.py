@@ -60,7 +60,7 @@ def test_normalize_addresses_matches_fixture(
     exp_by_id = {r["location_id"]: r for r in expected_table}
 
     assert set(got_by_id) == set(exp_by_id)
-    skip_ids = {"BROKEN_001", "BROKEN_002"}  # invalid states padded for pydantic in tests only
+    skip_ids = {"TEST_001", "TEST_002"}  # invalid states padded for pydantic in tests only
     for lid, exp in exp_by_id.items():
         if lid in skip_ids:
             continue

@@ -108,6 +108,13 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
 
+def _resolve_repo_path(path: Path) -> Path:
+    """Resolve relative paths against repo root (not backend/ cwd)."""
+    if path.is_absolute():
+        return path
+    return (REPO_ROOT / path).resolve()
+
+
 def load_settings(config_path: Path | None = None) -> Settings:
     """Load settings from YAML at repo root config.yaml + env overrides."""
     _load_root_dotenv()
@@ -119,6 +126,8 @@ def load_settings(config_path: Path | None = None) -> Settings:
         if isinstance(raw, dict):
             data = raw
     settings = Settings(**data)
+    settings.data_dir = _resolve_repo_path(settings.data_dir)
+    settings.geocoder.cache_path = _resolve_repo_path(settings.geocoder.cache_path)
     from sqft.log import configure_logging
 
     configure_logging(settings.log_level)

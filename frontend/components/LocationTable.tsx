@@ -53,10 +53,18 @@ export function LocationTable() {
             </tr>
           </thead>
           <tbody>
-            {data.rows.map((row) => (
-              <tr key={row.location_id} className="border-b border-[var(--border)]/60">
+            {data.rows.map((row) => {
+              const isTest = row.location_id.startsWith("TEST_");
+              return (
+              <tr
+                key={row.location_id}
+                className={`border-b border-[var(--border)]/60 ${isTest ? "bg-amber-500/5" : ""}`}
+              >
                 <td className="px-3 py-2 font-mono text-xs">
-                  <Link className="underline" href={`/locations/${row.location_id}`}>
+                  <Link
+                    className={isTest ? "text-amber-800 underline dark:text-amber-200" : "underline"}
+                    href={`/locations/${row.location_id}`}
+                  >
                     {row.location_id}
                   </Link>
                 </td>
@@ -66,7 +74,8 @@ export function LocationTable() {
                 </td>
                 <td className="px-3 py-2 capitalize">{row.confidence}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -6,16 +6,16 @@ WMART_004,3500 College Ave,San Diego,CA,92115,retail
 WMART_005,4505 Pacific Hwy SE,Salem,OR,97302,retail
 AMZN_FC_001,1655 W 43rd Ave,Kent,WA,98032,warehouse
 AMZN_FC_002,255 Park Center Dr,Patterson,CA,95363,warehouse
-AMZN_FC_003,10810 100th Ave,Edmonton,AB,99999,warehouse
 TGT_001,1015 W Sunset Blvd,Los Angeles,CA,90012,retail
 BBY_001,8225 W Bowles Ave,Littleton,CO,80123,retail
 HD_001,3837 Veterans Memorial Hwy,Ronkonkoma,NY,11779,retail
 LOWE_001,5610 Almeda Genoa Rd,Houston,TX,77048,retail
 COSTCO_001,4849 Northern Lights Blvd,Anchorage,AK,99508,retail
 BAKER_001,200 W Mariposa Rd,Stockton,CA,95207,other
-RESTO_001,123 Main St,Anytown,IL,60601,other
-CAFE_001,742 Evergreen Terrace,Springfield,IL,62701,other
 DRY_001,500 Elm St Suite 200,Houston,TX,77002,other
 SHOP_001,1 Mall Drive,Schaumburg,IL,60173,retail
-BROKEN_001,###,,,,other
-BROKEN_002,PO Box 1234,Anywhere,XX,00000,other
+TEST_001,###,,,,other
+TEST_002,PO Box 1234,Anywhere,XX,00000,other
+TEST_003,123 Main St,Anytown,IL,60601,other
+TEST_004,742 Evergreen Terrace,Springfield,IL,62701,other
+TEST_005,10810 100th Ave,Edmonton,AB,99999,warehouse

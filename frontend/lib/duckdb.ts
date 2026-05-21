@@ -42,23 +42,44 @@ function sqlPath(p: string): string {
 
 /** Prefer pipeline output; fall back to committed fixtures for local dev/CI. */
 export function parquetPath(name: string): string {
-  const output = path.join(dataDir(), "output", `${name}.parquet`);
-  if (fs.existsSync(output)) {
-    sqftLog.debug("duckdb", `parquet ${name} -> output ${output}`);
-    return output;
+  const candidates: { label: string; path: string }[] = [
+    { label: "output", path: path.join(dataDir(), "output", `${name}.parquet`) },
+    { label: "interim", path: path.join(dataDir(), "interim", `${name}.parquet`) },
+    {
+      label: "backend/output (legacy)",
+      path: path.join(repoRoot(), "backend", "data", "output", `${name}.parquet`),
+    },
+    {
+      label: "backend/interim (legacy)",
+      path: path.join(repoRoot(), "backend", "data", "interim", `${name}.parquet`),
+    },
+    { label: "fixture", path: path.join(repoRoot(), "tests", "fixtures", `${name}.parquet`) },
+  ];
+  for (const { label, path: p } of candidates) {
+    if (fs.existsSync(p)) {
+      if (label === "fixture") {
+        const live = candidates.find(
+          (c) => c.label.startsWith("output") || c.label.startsWith("backend"),
+        );
+        if (live && fs.existsSync(live.path)) {
+          sqftLog.warn(
+            "duckdb",
+            `parquet ${name}: using fixture ${p} but live data exists at ${live.path} — set SQFT_DATA_DIR or re-run make sample`,
+          );
+        } else {
+          sqftLog.warn(
+            "duckdb",
+            `parquet ${name}: using fixture ${p} (fictional coords/buildings). Run make sample for live data.`,
+          );
+        }
+      } else {
+        sqftLog.info("duckdb", `parquet ${name} -> ${label} ${p}`);
+      }
+      return p;
+    }
   }
-  const interim = path.join(dataDir(), "interim", `${name}.parquet`);
-  if (fs.existsSync(interim)) {
-    sqftLog.debug("duckdb", `parquet ${name} -> interim ${interim}`);
-    return interim;
-  }
-  const fixture = path.join(repoRoot(), "tests", "fixtures", `${name}.parquet`);
-  if (fs.existsSync(fixture)) {
-    sqftLog.debug("duckdb", `parquet ${name} -> fixture ${fixture}`);
-    return fixture;
-  }
-  sqftLog.warn("duckdb", `parquet ${name} not found, using missing path ${output}`);
-  return output;
+  sqftLog.warn("duckdb", `parquet ${name} not found, using missing path ${candidates[0].path}`);
+  return candidates[0].path;
 }
 
 export function parquetFromSql(name: string): string {

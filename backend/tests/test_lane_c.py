@@ -76,7 +76,7 @@ def test_pipeline_reproduces_fixture_estimates(
         assert est is not None and not pd.isna(est) and est > 0
         assert got.at[loc, "footprint_area_sqft"] > 0
 
-    broken = got.loc[["BROKEN_001", "BROKEN_002"]]
+    broken = got.loc[["TEST_001", "TEST_002"]]
     assert broken["building_id"].isna().all()
 
 
