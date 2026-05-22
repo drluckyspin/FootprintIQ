@@ -1,9 +1,13 @@
 "use client";
 
+import { Search } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { ListLocationsResponse } from "@/lib/api-contract";
+import { cn } from "@/lib/cn";
+
+import { ConfidenceBadge } from "./ConfidenceBadge";
 
 export function LocationTable() {
   const [data, setData] = useState<ListLocationsResponse | null>(null);
@@ -23,61 +27,89 @@ export function LocationTable() {
   }, [search]);
 
   if (error) {
-    return <p className="text-red-600">Failed to load locations: {error}</p>;
+    return (
+      <div className="app-panel border-[var(--confidence-unmatched)]/40 p-4 text-sm text-[var(--confidence-unmatched)]">
+        Failed to load locations: {error}
+      </div>
+    );
   }
 
   if (!data) {
-    return <p className="opacity-70">Loading locations…</p>;
+    return (
+      <div className="app-panel p-8">
+        <div className="flex items-center gap-3 text-sm text-[var(--muted-foreground)]">
+          <span className="inline-block h-4 w-4 animate-pulse rounded-full bg-[var(--primary)]/40" />
+          Loading locations…
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
-      <input
-        type="search"
-        placeholder="Search location id or address…"
-        className="w-full rounded border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <p className="text-sm opacity-70">
-        {data.total} locations · showing {data.rows.length}
-      </p>
-      <div className="overflow-x-auto rounded border border-[var(--border)]">
-        <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-[var(--border)] bg-black/5">
-            <tr>
-              <th className="px-3 py-2">ID</th>
-              <th className="px-3 py-2">Address</th>
-              <th className="px-3 py-2">Sqft</th>
-              <th className="px-3 py-2">Confidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.rows.map((row) => {
-              const isTest = row.location_id.startsWith("TEST_");
-              return (
-              <tr
-                key={row.location_id}
-                className={`border-b border-[var(--border)]/60 ${isTest ? "bg-amber-500/5" : ""}`}
-              >
-                <td className="px-3 py-2 font-mono text-xs">
-                  <Link
-                    className={isTest ? "text-amber-800 underline dark:text-amber-200" : "underline"}
-                    href={`/locations/${row.location_id}`}
-                  >
-                    {row.location_id}
-                  </Link>
-                </td>
-                <td className="max-w-md truncate px-3 py-2">{row.address_input}</td>
-                <td className="px-3 py-2 tabular-nums">
-                  {row.estimated_sqft?.toLocaleString() ?? "—"}
-                </td>
-                <td className="px-3 py-2 capitalize">{row.confidence}</td>
+      <div className="app-panel p-4">
+        <label className="flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--muted)] px-3 py-2 focus-within:border-[var(--primary)] focus-within:ring-[3px] focus-within:ring-[color-mix(in_srgb,var(--primary)_22%,transparent)]">
+          <span className="sr-only">Search locations</span>
+          <Search
+            className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          <input
+            type="search"
+            placeholder="Search location id or address…"
+            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <p className="mt-3 font-mono text-xs text-[var(--muted-foreground)]">
+          {data.total.toLocaleString()} locations · showing {data.rows.length}
+        </p>
+      </div>
+
+      <div className="app-panel overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="app-table min-w-full text-left text-sm">
+            <thead>
+              <tr>
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Address</th>
+                <th className="px-4 py-3 text-right">Sqft</th>
+                <th className="px-4 py-3">Confidence</th>
               </tr>
-              );
-            })}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.rows.map((row) => {
+                const isTest = row.location_id.startsWith("TEST_");
+                return (
+                  <tr key={row.location_id} className={cn(isTest && "bg-amber-500/[0.07]")}>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      <Link
+                        className={cn(
+                          "underline decoration-[var(--border-strong)] underline-offset-2 hover:decoration-[var(--primary)]",
+                          isTest && "text-amber-800 dark:text-amber-200",
+                        )}
+                        href={`/locations/${row.location_id}`}
+                      >
+                        {row.location_id}
+                      </Link>
+                    </td>
+                    <td className="max-w-md truncate px-4 py-3 text-[var(--muted-foreground)]">
+                      {row.address_input}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums font-medium">
+                      {row.estimated_sqft?.toLocaleString() ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <ConfidenceBadge confidence={row.confidence} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

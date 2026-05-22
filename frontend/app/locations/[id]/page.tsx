@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CalcTrace } from "@/components/CalcTrace";
+import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { LocationMap } from "@/components/LocationMap";
 import { LocationNav } from "@/components/LocationNav";
 import { QaForm } from "@/components/QaForm";
@@ -20,24 +21,67 @@ export default async function LocationDetailPage({
   const idx = ids.indexOf(params.id);
   const prevId = idx > 0 ? ids[idx - 1] : null;
   const nextId = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : null;
+  const { row } = detail;
+  const isTest = row.location_id.startsWith("TEST_");
 
   return (
-    <main className="mx-auto max-w-6xl p-8">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <Link href="/" className="text-sm underline">
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Link href="/" className="app-link text-sm">
           ← All locations
         </Link>
         <LocationNav locationId={params.id} prevId={prevId} nextId={nextId} />
       </div>
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold">{detail.row.location_id}</h1>
-        <p className="mt-1 text-sm opacity-80">{detail.row.address_input}</p>
+
+      <header className="app-panel mb-6 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="app-section-label mb-2">Location</p>
+            <h1 className="font-mono text-xl font-bold tracking-tight sm:text-2xl">
+              {row.location_id}
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
+              {row.address_input}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <ConfidenceBadge confidence={row.confidence} />
+            {row.estimated_sqft != null ? (
+              <div className="text-right">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
+                  Estimated
+                </p>
+                <p className="tabular-nums text-2xl font-semibold">
+                  {row.estimated_sqft.toLocaleString()}
+                  <span className="ml-1 text-sm font-normal text-[var(--muted-foreground)]">
+                    sqft
+                  </span>
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        {isTest ? (
+          <p className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-mono text-xs text-amber-900 dark:text-amber-100">
+            TEST row — expect geocode or footprint failures; not production data.
+          </p>
+        ) : null}
       </header>
+
       <div className="grid gap-6 lg:grid-cols-2">
-        <LocationMap detail={detail} />
+        <section>
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold">Satellite + footprint</h2>
+            <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+              Esri imagery
+            </span>
+          </div>
+          <LocationMap detail={detail} />
+        </section>
         <div className="space-y-6">
-          <section>
-            <h2 className="mb-2 text-lg font-semibold">Calculation trace</h2>
+          <section className="app-panel p-5">
+            <p className="app-section-label mb-3">Trace</p>
+            <h2 className="mb-4 text-sm font-semibold">Calculation trace</h2>
             <CalcTrace detail={detail} />
           </section>
           <QaForm row={detail.row} />

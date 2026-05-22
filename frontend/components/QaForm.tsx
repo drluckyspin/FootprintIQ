@@ -33,12 +33,15 @@ export function QaForm({ row }: { row: EstimateRow }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded border border-[var(--border)] p-4">
-      <h3 className="font-semibold">QA review</h3>
+    <form onSubmit={submit} className="app-panel space-y-4 p-5">
+      <div>
+        <p className="app-section-label mb-1">Human review</p>
+        <h3 className="text-sm font-semibold">QA review</h3>
+      </div>
       <label className="block text-sm">
-        Building selection
+        <span className="mb-1.5 block text-[var(--muted-foreground)]">Building selection</span>
         <select
-          className="mt-1 w-full rounded border border-[var(--border)] bg-transparent px-2 py-1"
+          className="app-input"
           value={buildingSelection}
           onChange={(e) => setBuildingSelection(e.target.value)}
         >
@@ -48,9 +51,9 @@ export function QaForm({ row }: { row: EstimateRow }) {
         </select>
       </label>
       <label className="block text-sm">
-        Sqft assessment
+        <span className="mb-1.5 block text-[var(--muted-foreground)]">Sqft assessment</span>
         <select
-          className="mt-1 w-full rounded border border-[var(--border)] bg-transparent px-2 py-1"
+          className="app-input"
           value={sqftAssessment}
           onChange={(e) => setSqftAssessment(e.target.value)}
         >
@@ -61,21 +64,22 @@ export function QaForm({ row }: { row: EstimateRow }) {
         </select>
       </label>
       <label className="block text-sm">
-        Notes
+        <span className="mb-1.5 block text-[var(--muted-foreground)]">Notes</span>
         <textarea
-          className="mt-1 w-full rounded border border-[var(--border)] bg-transparent px-2 py-1"
+          className="app-input min-h-[88px] resize-y"
           rows={3}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
       </label>
-      <button
-        type="submit"
-        className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-      >
-        Submit review
-      </button>
-      {status ? <p className="text-sm opacity-80">{status}</p> : null}
+      <div className="flex flex-wrap items-center gap-3 pt-1">
+        <button type="submit" className="app-btn-primary">
+          Submit review
+        </button>
+        {status ? (
+          <p className="font-mono text-xs text-[var(--muted-foreground)]">{status}</p>
+        ) : null}
+      </div>
     </form>
   );
 }

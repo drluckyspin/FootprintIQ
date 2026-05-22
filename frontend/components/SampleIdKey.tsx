@@ -16,20 +16,25 @@ const PREFIXES = [
 
 export function SampleIdKey() {
   return (
-    <aside className="w-full shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm sm:ml-auto sm:w-1/3 sm:max-w-[33%]">
-      <h2 className="font-semibold text-amber-950 dark:text-amber-100">Sample ID key</h2>
-      <p className="mt-1 text-xs opacity-80">
-        This list is the 20-row <code className="font-mono">sample_addresses.csv</code> harness,
-        not the full 22K portfolio.
+    <aside className="app-panel w-full shrink-0 border-amber-500/25 p-4 text-sm lg:max-w-sm">
+      <p className="app-section-label mb-2 text-amber-700 dark:text-amber-400">Harness</p>
+      <h2 className="font-semibold">Sample ID key</h2>
+      <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted-foreground)]">
+        20-row{" "}
+        <code className="rounded bg-[var(--muted)] px-1 font-mono text-[10px]">
+          sample_addresses.csv
+        </code>{" "}
+        harness, not the full 22K portfolio.
       </p>
-      <dl className="mt-3 space-y-3">
+      <dl className="mt-4 space-y-3 border-t border-[var(--border)] pt-4">
         {PREFIXES.map((row) => (
           <div key={row.prefix}>
             <dt className="font-mono text-xs font-medium text-amber-900 dark:text-amber-200">
               {row.prefix}
             </dt>
-            <dd className="mt-0.5 text-xs opacity-90">
-              <span className="font-medium">{row.label}.</span> {row.detail}
+            <dd className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
+              <span className="font-medium text-[var(--foreground)]">{row.label}.</span>{" "}
+              {row.detail}
             </dd>
           </div>
         ))}

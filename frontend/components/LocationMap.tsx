@@ -34,7 +34,7 @@ export function LocationMap({ detail }: Props) {
   }, [chosen_building]);
 
   return (
-    <div className="h-[420px] w-full overflow-hidden rounded border border-[var(--border)]">
+    <div className="app-panel h-[420px] overflow-hidden p-0">
       <MapGL
         initialViewState={{ latitude: lat, longitude: lon, zoom: 17 }}
         mapStyle={{
@@ -61,7 +61,7 @@ export function LocationMap({ detail }: Props) {
             <Layer
               id="footprint-line"
               type="line"
-              paint={{ "line-color": "#1d4ed8", "line-width": 2 }}
+              paint={{ "line-color": "#2563eb", "line-width": 2 }}
             />
           </Source>
         ) : null}
