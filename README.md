@@ -159,7 +159,7 @@ make fixtures       # rebuild tests/fixtures/*.parquet
 ## Repository layout
 
 ```
-roof-survey/
+footprintiq/
 ├── Makefile, Common.make    # only supported entrypoint (make check, run, test, …)
 ├── config.yaml              # pipeline defaults
 ├── .env.example             # env template (copy → .env)

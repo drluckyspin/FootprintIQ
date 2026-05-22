@@ -7,7 +7,7 @@ locked by Wave 0, and edits **only** the files in its allowlist below.
 ## Common rules (apply to every lane)
 
 - **Branch**: `wave1/<lane-id>` (e.g. `wave1/lane-a-ingest`).
-- **Worktree**: `git worktree add ../roof-survey-<lane-id> wave1/<lane-id>`.
+- **Worktree**: `git worktree add ../footprintiq-<lane-id> wave1/<lane-id>`.
 - **Frozen contracts** — do not edit:
   - `backend/src/sqft/schema.py`
   - `frontend/lib/schema.ts`
