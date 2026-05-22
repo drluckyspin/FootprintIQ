@@ -22,7 +22,6 @@ export default async function LocationDetailPage({
   const prevId = idx > 0 ? ids[idx - 1] : null;
   const nextId = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : null;
   const { row } = detail;
-  const isTest = row.location_id.startsWith("TEST_");
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -61,11 +60,6 @@ export default async function LocationDetailPage({
             ) : null}
           </div>
         </div>
-        {isTest ? (
-          <p className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 font-mono text-xs text-amber-900 dark:text-amber-100">
-            TEST row — expect geocode or footprint failures; not production data.
-          </p>
-        ) : null}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">

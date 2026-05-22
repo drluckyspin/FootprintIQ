@@ -4,8 +4,23 @@
 
 All pipeline logic runs in **Python** (`backend/`). The visualizer reads the same parquet files via **DuckDB** in Route Handlers — no separate API service.
 
-![alt text](docs/image.png)
----
+## Key Features
+
+- **Portfolio-scale batch:** Handles 1 or 22,000+ addresses in one run. Built for retail/warehouse/industrial portfolios.
+- **End-to-end**: From raw address input to geocoding, footprint lookup, polygon matching, floor counts, and audit-parquet output in a single command.
+- **Auditable outputs**: Every estimate reports method, confidence, evidence links, and traceable match details for downstream review.
+- **Human QA visualizer**: Next.js + MapLibre app for inspecting, searching, and QA/QC'ing locations; verdicts written back to the pipeline.
+- **Resumable stages**: All intermediate dataframes are written as parquet files at each step — easy to resume/inspect.
+- **Built for transparency**: Outputs are ground-truthable, reproducible, and come with rich summary reports per run.
+
+<!-- markdownlint-disable MD033 -->
+<table>
+  <tr>
+    <td width="50%"><img src="docs/homepage.png" alt="FootprintIQ homepage" width="100%"></td>
+    <td width="50%"><img src="docs/image.png" alt="Location detail with map and calc trace" width="100%"></td>
+  </tr>
+</table>
+<!-- markdownlint-enable MD033 -->
 
 ## What you get
 

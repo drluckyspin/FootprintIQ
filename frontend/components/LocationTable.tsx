@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { ListLocationsResponse } from "@/lib/api-contract";
-import { cn } from "@/lib/cn";
 
 import { ConfidenceBadge } from "./ConfidenceBadge";
 
@@ -45,8 +44,18 @@ export function LocationTable() {
     );
   }
 
+  const usingFixtures = data.rows.some((r) => r.overture_release === "fixture-1.0");
+
   return (
     <div className="space-y-4">
+      {usingFixtures ? (
+        <div className="app-panel border-[var(--primary)]/35 px-4 py-3 text-sm text-[var(--muted-foreground)]">
+          <span className="font-medium text-[var(--foreground)]">Offline fixture data.</span> Map
+          pins and footprints use synthetic coordinates. Run{" "}
+          <code className="rounded bg-[var(--muted)] px-1 font-mono text-xs">make sample</code> for
+          live Google geocodes and Overture buildings on satellite imagery.
+        </div>
+      ) : null}
       <div className="app-panel p-4">
         <label className="flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--muted)] px-3 py-2 focus-within:border-[var(--primary)] focus-within:ring-[3px] focus-within:ring-[color-mix(in_srgb,var(--primary)_22%,transparent)]">
           <span className="sr-only">Search locations</span>
@@ -80,33 +89,27 @@ export function LocationTable() {
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row) => {
-                const isTest = row.location_id.startsWith("TEST_");
-                return (
-                  <tr key={row.location_id} className={cn(isTest && "bg-amber-500/[0.07]")}>
-                    <td className="px-4 py-3 font-mono text-xs">
-                      <Link
-                        className={cn(
-                          "underline decoration-[var(--border-strong)] underline-offset-2 hover:decoration-[var(--primary)]",
-                          isTest && "text-amber-800 dark:text-amber-200",
-                        )}
-                        href={`/locations/${row.location_id}`}
-                      >
-                        {row.location_id}
-                      </Link>
-                    </td>
-                    <td className="max-w-md truncate px-4 py-3 text-[var(--muted-foreground)]">
-                      {row.address_input}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-medium">
-                      {row.estimated_sqft?.toLocaleString() ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <ConfidenceBadge confidence={row.confidence} />
-                    </td>
-                  </tr>
-                );
-              })}
+              {data.rows.map((row) => (
+                <tr key={row.location_id}>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    <Link
+                      className="underline decoration-[var(--border-strong)] underline-offset-2 hover:decoration-[var(--primary)]"
+                      href={`/locations/${row.location_id}`}
+                    >
+                      {row.location_id}
+                    </Link>
+                  </td>
+                  <td className="max-w-md truncate px-4 py-3 text-[var(--muted-foreground)]">
+                    {row.address_input}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium">
+                    {row.estimated_sqft?.toLocaleString() ?? "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <ConfidenceBadge confidence={row.confidence} />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

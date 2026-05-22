@@ -14,12 +14,14 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from shapely import wkb
 from shapely.geometry import Polygon
 
 FIXTURES_DIR = Path(__file__).resolve().parent
+REPO_ROOT = FIXTURES_DIR.parent.parent
 NOW = datetime(2026, 5, 21, 3, 0, 0, tzinfo=timezone.utc)
 
 
@@ -60,6 +62,28 @@ LOCATIONS: list[dict] = [
 
 def address_key(d: dict) -> str:
     return f"{d['addr'].lower().strip()}|{d['city'].lower().strip()}|{d['state'].lower().strip()}|{(d['zip'] or '').strip()}"
+
+
+def apply_live_geocodes(locations: list[dict]) -> int:
+    """When data/output/estimates.parquet exists, align fixture coords with the last live sample run."""
+    live_path = REPO_ROOT / "data" / "output" / "estimates.parquet"
+    if not live_path.exists():
+        return 0
+    df = pd.read_parquet(live_path)
+    by_id = {str(row["location_id"]): row for _, row in df.iterrows()}
+    updated = 0
+    for d in locations:
+        if d["id"].startswith("TEST_"):
+            continue
+        row = by_id.get(d["id"])
+        if row is None:
+            continue
+        lat, lon = row.get("geocoded_lat"), row.get("geocoded_lon")
+        if lat is not None and lon is not None and pd.notna(lat) and pd.notna(lon):
+            d["lat"] = float(lat)
+            d["lon"] = float(lon)
+            updated += 1
+    return updated
 
 
 def square_around(lat: float, lon: float, half_deg: float = 0.0005) -> Polygon:
@@ -218,6 +242,9 @@ def build_qa_reviews_empty() -> list[dict]:
 def main() -> None:
     print(f"Writing fixtures to {FIXTURES_DIR}")
     run_id = "fixture-run-001"
+    n = apply_live_geocodes(LOCATIONS)
+    if n:
+        print(f"  aligned {n} location coords from data/output/estimates.parquet")
 
     fixtures = {
         "normalized.parquet": build_normalized(),

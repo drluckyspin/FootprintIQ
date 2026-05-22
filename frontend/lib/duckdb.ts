@@ -17,10 +17,14 @@ export function repoRoot(): string {
   return path.resolve(process.cwd(), "..");
 }
 
+/** Repo-root `data/` (or SQFT_DATA_DIR). Relative paths are resolved from repo root, not `frontend/`. */
 export function dataDir(): string {
-  return process.env.SQFT_DATA_DIR
-    ? path.resolve(process.env.SQFT_DATA_DIR)
-    : path.resolve(repoRoot(), "data");
+  const root = repoRoot();
+  const raw = process.env.SQFT_DATA_DIR?.trim();
+  if (!raw) {
+    return path.join(root, "data");
+  }
+  return path.isAbsolute(raw) ? raw : path.resolve(root, raw);
 }
 
 export async function getConnection(): Promise<DuckDBConnection> {
@@ -40,50 +44,102 @@ function sqlPath(p: string): string {
   return p.replace(/\\/g, "/").replace(/'/g, "''");
 }
 
+type ParquetName = "estimates" | "footprints" | "geocoded" | "qa_reviews";
+
+type DataBundle = {
+  label: string;
+  paths: Partial<Record<ParquetName, string>>;
+};
+
+function exists(p: string): boolean {
+  return fs.existsSync(p);
+}
+
+/** Resolve a consistent parquet set so estimates, footprints, and geocoded never mix tiers. */
+function resolveBundle(): DataBundle {
+  const data = dataDir();
+  const root = repoRoot();
+  const fixtureDir = path.join(root, "tests", "fixtures");
+
+  const liveEstimates = path.join(data, "output", "estimates.parquet");
+  const liveFootprints = path.join(data, "interim", "footprints.parquet");
+  const liveGeocoded = path.join(data, "interim", "geocoded.parquet");
+
+  if (exists(liveEstimates) && exists(liveFootprints) && exists(liveGeocoded)) {
+    const bundle: DataBundle = {
+      label: "live-run",
+      paths: {
+        estimates: liveEstimates,
+        footprints: liveFootprints,
+        geocoded: liveGeocoded,
+        qa_reviews: path.join(data, "output", "qa_reviews.parquet"),
+      },
+    };
+    sqftLog.info(
+      "duckdb",
+      `data bundle: live pipeline dataDir=${data} estimates=${liveEstimates}`,
+    );
+    return bundle;
+  }
+
+  const fixtureEstimates = path.join(fixtureDir, "estimates.parquet");
+  const fixtureFootprints = path.join(fixtureDir, "footprints.parquet");
+  const fixtureGeocoded = path.join(fixtureDir, "geocoded.parquet");
+
+  if (exists(fixtureEstimates)) {
+    const bundle: DataBundle = {
+      label: "fixture",
+      paths: {
+        estimates: fixtureEstimates,
+        footprints: fixtureFootprints,
+        geocoded: fixtureGeocoded,
+        qa_reviews: path.join(data, "output", "qa_reviews.parquet"),
+      },
+    };
+    if (exists(liveEstimates)) {
+      sqftLog.warn(
+        "duckdb",
+        `data bundle: fixtures (incomplete live run at dataDir=${data}). Run: make sample`,
+      );
+    } else {
+      sqftLog.warn(
+        "duckdb",
+        `data bundle: fixtures only (dataDir=${data}). Run: make sample for live satellite alignment`,
+      );
+    }
+    return bundle;
+  }
+
+  sqftLog.warn("duckdb", `no estimates.parquet under dataDir=${data} or tests/fixtures`);
+  return {
+    label: "missing",
+    paths: { estimates: liveEstimates },
+  };
+}
+
 /** Prefer pipeline output; fall back to committed fixtures for local dev/CI. */
 export function parquetPath(name: string): string {
-  const candidates: { label: string; path: string }[] = [
-    { label: "output", path: path.join(dataDir(), "output", `${name}.parquet`) },
-    { label: "interim", path: path.join(dataDir(), "interim", `${name}.parquet`) },
-    {
-      label: "backend/output (legacy)",
-      path: path.join(repoRoot(), "backend", "data", "output", `${name}.parquet`),
-    },
-    {
-      label: "backend/interim (legacy)",
-      path: path.join(repoRoot(), "backend", "data", "interim", `${name}.parquet`),
-    },
-    { label: "fixture", path: path.join(repoRoot(), "tests", "fixtures", `${name}.parquet`) },
-  ];
-  for (const { label, path: p } of candidates) {
-    if (fs.existsSync(p)) {
-      if (label === "fixture") {
-        const live = candidates.find(
-          (c) => c.label.startsWith("output") || c.label.startsWith("backend"),
-        );
-        if (live && fs.existsSync(live.path)) {
-          sqftLog.warn(
-            "duckdb",
-            `parquet ${name}: using fixture ${p} but live data exists at ${live.path} — set SQFT_DATA_DIR or re-run make sample`,
-          );
-        } else {
-          sqftLog.warn(
-            "duckdb",
-            `parquet ${name}: using fixture ${p} (fictional coords/buildings). Run make sample for live data.`,
-          );
-        }
-      } else {
-        sqftLog.info("duckdb", `parquet ${name} -> ${label} ${p}`);
-      }
-      return p;
-    }
+  const bundle = resolveBundle();
+  const fromBundle = bundle.paths[name as ParquetName];
+  if (fromBundle && exists(fromBundle)) {
+    return fromBundle;
   }
-  sqftLog.warn("duckdb", `parquet ${name} not found, using missing path ${candidates[0].path}`);
-  return candidates[0].path;
+
+  if (name === "qa_reviews") {
+    const qaOut = path.join(dataDir(), "output", "qa_reviews.parquet");
+    if (exists(qaOut)) return qaOut;
+  }
+
+  const fallback = path.join(dataDir(), "output", `${name}.parquet`);
+  return fallback;
 }
 
 export function parquetFromSql(name: string): string {
   return `'${sqlPath(parquetPath(name))}'`;
+}
+
+export function dataBundleLabel(): string {
+  return resolveBundle().label;
 }
 
 export function interimParquet(name: string): string {

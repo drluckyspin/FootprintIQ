@@ -59,7 +59,7 @@ export async function listLocations(q: ListLocationsQuery): Promise<ListLocation
   sqftLog.info("queries", `listLocations limit=${q.limit} offset=${q.offset}`, q);
   const conn = await getConnection();
   const est = parquetFromSql("estimates");
-  sqftLog.debug("queries", `reading estimates parquet ${est}`);
+  sqftLog.info("queries", `reading estimates parquet ${est}`);
   const conditions: string[] = [];
   const params: DuckDBValue[] = [];
 

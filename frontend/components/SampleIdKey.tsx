@@ -8,9 +8,9 @@ const PREFIXES = [
   },
   {
     prefix: "TEST_",
-    label: "Test-only rows",
+    label: "Harness edge cases (5 rows)",
     detail:
-      "Fictional or invalid addresses (Anytown, Evergreen Terrace, PO Box, etc.). Expect geocode or match failures — not production data.",
+      "Invalid or fictional inputs only: ###, PO Box, Anytown, Evergreen Terrace, non-US site. Expect geocode or footprint failures.",
   },
 ] as const;
 
