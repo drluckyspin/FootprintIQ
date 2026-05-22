@@ -1,12 +1,12 @@
 # FootprintIQ
 
-**FootprintIQ** (repo: `roof-survey`) estimates building square footage for large portfolios of US commercial addresses (~22K retail and warehouse sites). It geocodes each location, pulls building footprints from [Overture Maps](https://overturemaps.org/) on AWS S3, matches points to polygons, resolves floor counts, and writes auditable parquet outputs plus a **Next.js + MapLibre QA visualizer** for human review.
+**FootprintIQ** estimates building square footage for US commercial addresses (retail and warehouse sites). It geocodes each location, pulls building footprints from [Overture Maps](https://overturemaps.org/) on AWS S3, matches points to polygons, resolves floor counts, and writes auditable parquet outputs plus a **Next.js + MapLibre QA visualizer** for human review.
 
 All pipeline logic runs in **Python** (`backend/`). The visualizer reads the same parquet files via **DuckDB** in Route Handlers — no separate API service.
 
 ## Key Features
 
-- **Portfolio-scale batch:** Handles 1 or 22,000+ addresses in one run. Built for retail/warehouse/industrial portfolios.
+- **Portfolio-scale batch:** Handles 1 or 20,000+ addresses in one run. Built for retail/warehouse/industrial portfolios.
 - **End-to-end**: From raw address input to geocoding, footprint lookup, polygon matching, floor counts, and audit-parquet output in a single command.
 - **Auditable outputs**: Every estimate reports method, confidence, evidence links, and traceable match details for downstream review.
 - **Human QA visualizer**: Next.js + MapLibre app for inspecting, searching, and QA/QC'ing locations; verdicts written back to the pipeline.
