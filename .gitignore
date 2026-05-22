@@ -9,6 +9,8 @@ frontend/.env.*
 *.bak
 .env.new
 
+*plan.md
+
 # --- data (PII: never commit input addresses) ---
 # Ignore *contents* of data/ subdirs but keep the directory tree itself committable via .gitkeep files.
 data/input/*
